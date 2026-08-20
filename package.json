@@ -1,0 +1,25 @@
+{
+  "name": "aegis-retail",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Offline-first POS and inventory platform for low-connectivity retail",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "start": "concurrently -n \"server,dashboard\" -c \"blue,green\" \"npm run start:server\" \"npm run dev:dashboard\"",
+    "dev:all": "concurrently -n \"server,dashboard\" -c \"blue,green\" \"npm run start:server\" \"npm run dev:dashboard\"",
+    "dev": "npm run dev:dashboard",
+    "start:server": "npm run start --workspace=@aegis/server",
+    "dev:server": "npm run start --workspace=@aegis/server",
+    "dev:pos": "npm run dev --workspace=@aegis/client-pos",
+    "dev:dashboard": "npm run dev --workspace=@aegis/manager-dashboard"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5",
+    "rimraf": "^5.0.7",
+    "typescript": "^5.4.5"
+  }
+}
