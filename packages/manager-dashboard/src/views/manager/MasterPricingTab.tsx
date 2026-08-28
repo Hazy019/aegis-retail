@@ -1,14 +1,22 @@
 import React, { useState, useMemo } from 'react';
 import { useDashboardData } from '../../context/DashboardDataContext.js';
 import { CatalogProduct } from '../../api/client.js';
-import { Tag, Trash2, Search, Package, Plus, X } from 'lucide-react';
+import { Tag, Trash2, Search, Package, Plus, X, PackagePlus } from 'lucide-react';
 import { TableSkeleton } from '../../components/common/SkeletonLoader.js';
+import { Pagination } from '../../components/common/Pagination.js';
+import { RegisterProductModal } from '../../components/manager/RegisterProductModal.js';
 
 export function MasterPricingTab() {
   const { products, updateProductPrice, writeOffDamage, loading } = useDashboardData();
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(6);
+
   // Modals state
+  const [registerModalOpen, setRegisterModalOpen] = useState(false);
+
   const [priceModal, setPriceModal] = useState<{ open: boolean; product: CatalogProduct | null; newPrice: string }>({
     open: false,
     product: null,
@@ -29,6 +37,12 @@ export function MasterPricingTab() {
       (p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.barcode.includes(q)
     );
   }, [products, searchQuery]);
+
+  // Paginated slice
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredProducts.slice(start, start + pageSize);
+  }, [filteredProducts, currentPage, pageSize]);
 
   const formatCurrency = (minor: number) => `₱${(minor / 100).toFixed(2)}`;
 
@@ -59,7 +73,7 @@ export function MasterPricingTab() {
 
   return (
     <div className="tab-content-enter">
-      {/* Header & Search */}
+      {/* Header & Primary Actions */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h2>Master Product Catalog & Pricing</h2>
@@ -68,105 +82,135 @@ export function MasterPricingTab() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '280px' }}>
-          <div style={{ position: 'relative', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', width: '260px' }}>
             <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-subtle)' }} />
             <input
               type="text"
               className="input-field"
               placeholder="Search product, SKU or barcode..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
               style={{ paddingLeft: '34px' }}
             />
           </div>
+
+          <button
+            className="btn btn-primary"
+            onClick={() => setRegisterModalOpen(true)}
+            style={{ fontWeight: 600, boxShadow: 'var(--shadow-subtle)' }}
+          >
+            <PackagePlus size={16} /> Register New Goods
+          </button>
         </div>
       </div>
 
-      {/* Catalog Table */}
-      <div className="data-table-wrapper">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Product & SKU</th>
-              <th>Barcode</th>
-              <th>Unit Type</th>
-              <th style={{ textAlign: 'right' }}>Cost Price</th>
-              <th style={{ textAlign: 'right' }}>Retail Price</th>
-              <th style={{ textAlign: 'center' }}>Physical Stock</th>
-              <th style={{ textAlign: 'center' }}>POS Display Stock</th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredProducts.length === 0 ? (
+      {/* Containerized Table Viewport */}
+      <div className="table-viewport-card">
+        <div className="table-scroll-container">
+          <table className="data-table">
+            <thead>
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-                  No catalog products found matching "{searchQuery}".
-                </td>
+                <th>Product & SKU</th>
+                <th>Barcode</th>
+                <th>Unit Type</th>
+                <th style={{ textAlign: 'right' }}>Cost Price</th>
+                <th style={{ textAlign: 'right' }}>Retail Price</th>
+                <th style={{ textAlign: 'center' }}>Physical Stock</th>
+                <th style={{ textAlign: 'center' }}>POS Display Stock</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
-            ) : (
-              filteredProducts.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{p.name}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>SKU: <code>{p.sku}</code></div>
-                  </td>
-                  <td>
-                    <span className="hash-cell" style={{ fontSize: '11px' }}>{p.barcode}</span>
-                  </td>
-                  <td>
-                    <span className="badge badge-teal">
-                      {p.unit_type} {p.units_per_bulk > 1 ? `(${p.units_per_bulk}/bulk)` : ''}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <span className="metric-cell" style={{ color: 'var(--text-muted)' }}>
-                      {formatCurrency(p.cost_price)}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <span className="metric-cell" style={{ color: 'var(--color-primary)', fontSize: '15px' }}>
-                      {formatCurrency(p.price)}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <span
-                      className="metric-cell"
-                      style={{ color: p.stock_quantity < 0 ? 'var(--color-accent-red)' : 'inherit' }}
-                    >
-                      {p.stock_quantity}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <span className="badge badge-green">
-                      {p.display_quantity} units
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', gap: '6px' }}>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => setPriceModal({ open: true, product: p, newPrice: (p.price / 100).toString() })}
-                        title="Queue retail price adjustment"
-                      >
-                        <Tag size={13} /> Edit Price
-                      </button>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => setDamageModal({ open: true, product: p, quantity: '5', reason: 'Damaged item write-off' })}
-                        title="Record damaged inventory write-off"
-                      >
-                        <Trash2 size={13} /> Write-Off
-                      </button>
-                    </div>
+            </thead>
+            <tbody>
+              {paginatedProducts.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--text-muted)' }}>
+                    No catalog products found matching "{searchQuery}".
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                paginatedProducts.map((p) => (
+                  <tr key={p.id}>
+                    <td>
+                      <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{p.name}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>SKU: <code>{p.sku}</code></div>
+                    </td>
+                    <td>
+                      <span className="hash-cell" style={{ fontSize: '11px' }}>{p.barcode}</span>
+                    </td>
+                    <td>
+                      <span className="badge badge-teal">
+                        {p.unit_type} {p.units_per_bulk > 1 ? `(${p.units_per_bulk}/bulk)` : ''}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <span className="metric-cell" style={{ color: 'var(--text-muted)' }}>
+                        {formatCurrency(p.cost_price)}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <span className="metric-cell" style={{ color: 'var(--color-primary)', fontSize: '15px' }}>
+                        {formatCurrency(p.price)}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span
+                        className="metric-cell"
+                        style={{ color: p.stock_quantity < 0 ? 'var(--color-accent-red)' : 'inherit' }}
+                      >
+                        {p.stock_quantity}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className="badge badge-green">
+                        {p.display_quantity} units
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', gap: '6px' }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setPriceModal({ open: true, product: p, newPrice: (p.price / 100).toString() })}
+                          title="Queue retail price adjustment"
+                        >
+                          <Tag size={13} /> Edit Price
+                        </button>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setDamageModal({ open: true, product: p, quantity: '5', reason: 'Damaged item write-off' })}
+                          title="Record damaged inventory write-off"
+                        >
+                          <Trash2 size={13} /> Write-Off
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Footer */}
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredProducts.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          pageSizeOptions={[6, 12, 24]}
+          itemLabel="products"
+        />
       </div>
+
+      {/* MODAL: REGISTER NEW GOODS */}
+      <RegisterProductModal
+        isOpen={registerModalOpen}
+        onClose={() => setRegisterModalOpen(false)}
+      />
 
       {/* MODAL: EDIT PRICE */}
       {priceModal.open && priceModal.product && (

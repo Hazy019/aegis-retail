@@ -1,16 +1,24 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useDashboardData } from '../../context/DashboardDataContext.js';
 import { ShieldCheck, ShieldAlert, RefreshCw, Lock, Link } from 'lucide-react';
 import { TableSkeleton } from '../../components/common/SkeletonLoader.js';
+import { Pagination } from '../../components/common/Pagination.js';
 
 export function AuditTrailTab() {
   const { auditLogs, auditVerification, refreshData, loading } = useDashboardData();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(6);
+
+  const isChainValid = auditVerification?.chain_valid ?? true;
+
+  const paginatedLogs = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return auditLogs.slice(start, start + pageSize);
+  }, [auditLogs, currentPage, pageSize]);
 
   if (loading && auditLogs.length === 0) {
     return <TableSkeleton rows={6} cols={6} />;
   }
-
-  const isChainValid = auditVerification?.chain_valid ?? true;
 
   return (
     <div className="tab-content-enter">
@@ -78,67 +86,81 @@ export function AuditTrailTab() {
         </div>
       )}
 
-      {/* Audit Logs Table */}
-      <div className="data-table-wrapper">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Actor & Role</th>
-              <th>Action</th>
-              <th>Entity</th>
-              <th>SHA-256 Hash</th>
-              <th>Previous Block Hash</th>
-            </tr>
-          </thead>
-          <tbody>
-            {auditLogs.length === 0 ? (
+      {/* Containerized Table Viewport */}
+      <div className="table-viewport-card">
+        <div className="table-scroll-container">
+          <table className="data-table">
+            <thead>
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-                  No audit log entries recorded yet.
-                </td>
+                <th>Timestamp</th>
+                <th>Actor & Role</th>
+                <th>Action</th>
+                <th>Entity</th>
+                <th>SHA-256 Hash</th>
+                <th>Previous Block Hash</th>
               </tr>
-            ) : (
-              auditLogs.map((log) => (
-                <tr key={log.id}>
-                  <td style={{ fontSize: '12px', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
-                    {new Date(log.created_at).toLocaleString()}
-                  </td>
-                  <td>
-                    <span className="badge badge-teal">{log.actor_role}</span>
-                    <div style={{ fontSize: '11px', color: 'var(--text-subtle)', marginTop: '2px' }}>
-                      <code>{log.actor_id.slice(0, 8)}...</code>
-                    </div>
-                  </td>
-                  <td>
-                    <strong style={{ color: 'var(--text-main)' }}>{log.action}</strong>
-                  </td>
-                  <td>
-                    <code style={{ fontSize: '12px' }}>
-                      {log.entity_type} ({log.entity_id.slice(0, 8)})
-                    </code>
-                  </td>
-                  <td>
-                    <span className="hash-cell">{log.hash.slice(0, 16)}...</span>
-                  </td>
-                  <td>
-                    <span
-                      className="hash-cell"
-                      style={{
-                        backgroundColor: 'transparent',
-                        borderColor: 'var(--border-subtle)',
-                        color: 'var(--text-muted)'
-                      }}
-                    >
-                      {log.previous_hash.slice(0, 16)}...
-                    </span>
+            </thead>
+            <tbody>
+              {paginatedLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--text-muted)' }}>
+                    No audit log entries recorded yet.
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                paginatedLogs.map((log) => (
+                  <tr key={log.id}>
+                    <td style={{ fontSize: '12px', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
+                      {new Date(log.created_at).toLocaleString()}
+                    </td>
+                    <td>
+                      <span className="badge badge-teal">{log.actor_role}</span>
+                      <div style={{ fontSize: '11px', color: 'var(--text-subtle)', marginTop: '2px' }}>
+                        <code>{log.actor_id.slice(0, 8)}...</code>
+                      </div>
+                    </td>
+                    <td>
+                      <strong style={{ color: 'var(--text-main)' }}>{log.action}</strong>
+                    </td>
+                    <td>
+                      <code style={{ fontSize: '12px' }}>
+                        {log.entity_type} ({log.entity_id.slice(0, 8)})
+                      </code>
+                    </td>
+                    <td>
+                      <span className="hash-cell">{log.hash.slice(0, 16)}...</span>
+                    </td>
+                    <td>
+                      <span
+                        className="hash-cell"
+                        style={{
+                          backgroundColor: 'transparent',
+                          borderColor: 'var(--border-subtle)',
+                          color: 'var(--text-muted)'
+                        }}
+                      >
+                        {log.previous_hash.slice(0, 16)}...
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Footer */}
+        <Pagination
+          currentPage={currentPage}
+          totalItems={auditLogs.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          pageSizeOptions={[6, 12, 24]}
+          itemLabel="audit blocks"
+        />
       </div>
     </div>
   );
 }
+

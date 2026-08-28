@@ -14,6 +14,7 @@ import {
   AnomalyResolutionSchema,
   CustomerCreationSchema,
   DamageWriteOffSchema,
+  ProductCreationSchema,
   verifyAuditChain,
   getSyncHealth
 } from '@aegis/core';
@@ -185,6 +186,36 @@ export function registerRoutes(
     });
 
     return reply.status(200).send({ products: enriched, proposals });
+  });
+
+  app.post('/dashboard/products', async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user || user.role !== 'manager') return;
+
+    try {
+      const body = ProductCreationSchema.parse(req.body);
+      const { initial_stock, ...productData } = body;
+      const { product, inventory } = await repo.createProduct(
+        user.store_id,
+        {
+          ...productData,
+          is_active: true
+        },
+        initial_stock
+      );
+
+      return reply.status(201).send({
+        status: 'product_created',
+        product: {
+          ...product,
+          stock_quantity: inventory.quantity,
+          display_quantity: inventory.display_quantity,
+          pending_price: null
+        }
+      });
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message });
+    }
   });
 
   app.post('/dashboard/pricing/propose', async (req, reply) => {

@@ -22,6 +22,18 @@ interface DashboardDataContextType {
   loading: boolean;
   error: string | null;
   refreshData: () => Promise<void>;
+  registerProduct: (productData: {
+    sku: string;
+    barcode: string;
+    name: string;
+    description?: string;
+    unit_type: string;
+    units_per_bulk: number;
+    bulk_parent_id?: string | null;
+    price: number;
+    cost_price: number;
+    initial_stock: number;
+  }) => Promise<CatalogProduct>;
   updateProductPrice: (productId: string, newPriceMinor: number) => Promise<void>;
   writeOffDamage: (productId: string, quantity: number, reason: string) => Promise<void>;
   registerCustomer: (name: string, phone: string, creditLimitMinor: number) => Promise<void>;
@@ -94,6 +106,31 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
       setAuditVerification(null);
     }
   }, [isAuthenticated, refreshData]);
+
+  const registerProduct = async (productData: {
+    sku: string;
+    barcode: string;
+    name: string;
+    description?: string;
+    unit_type: string;
+    units_per_bulk: number;
+    bulk_parent_id?: string | null;
+    price: number;
+    cost_price: number;
+    initial_stock: number;
+  }): Promise<CatalogProduct> => {
+    const t0 = performance.now();
+    try {
+      const res = await api.createProduct(productData);
+      const latency = Math.round(performance.now() - t0);
+      toast.success('Product Registered', `${productData.name} registered into master catalog and queued for edge POS sync.`, latency);
+      await refreshData();
+      return res.product;
+    } catch (err: any) {
+      toast.error('Registration Error', err.message || 'Could not register new product.');
+      throw err;
+    }
+  };
 
   const updateProductPrice = async (productId: string, newPriceMinor: number) => {
     const t0 = performance.now();
@@ -173,6 +210,7 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
         loading,
         error,
         refreshData,
+        registerProduct,
         updateProductPrice,
         writeOffDamage,
         registerCustomer,

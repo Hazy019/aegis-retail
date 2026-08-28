@@ -130,3 +130,18 @@ export const AnomalyResolutionSchema = z.object({
   adjusted_quantity: z.number().int().optional(),
   resolution_notes: z.string().min(3)
 });
+
+// Product Creation Schema
+export const ProductCreationSchema = z.object({
+  sku: z.string().min(1),
+  barcode: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  unit_type: UnitTypeSchema,
+  units_per_bulk: z.number().int().positive().default(1),
+  bulk_parent_id: z.string().uuid().nullable().optional(),
+  price: z.number().int().nonnegative(),
+  cost_price: z.number().int().nonnegative(),
+  initial_stock: z.number().int().nonnegative().default(0)
+});
+

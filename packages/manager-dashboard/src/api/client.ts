@@ -135,6 +135,24 @@ class DashboardApiClient {
     return this.request<{ products: CatalogProduct[]; proposals: any[] }>('/dashboard/pricing');
   }
 
+  async createProduct(productData: {
+    sku: string;
+    barcode: string;
+    name: string;
+    description?: string;
+    unit_type: string;
+    units_per_bulk: number;
+    bulk_parent_id?: string | null;
+    price: number;
+    cost_price: number;
+    initial_stock: number;
+  }): Promise<{ status: string; product: CatalogProduct }> {
+    return this.request('/dashboard/products', {
+      method: 'POST',
+      body: JSON.stringify(productData)
+    });
+  }
+
   async updatePrice(productId: string, newPrice: number) {
     return this.request('/dashboard/pricing/propose', {
       method: 'POST',
