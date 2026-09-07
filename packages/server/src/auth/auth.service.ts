@@ -26,6 +26,7 @@ export class AuthService {
   private accessTokenTtlSec: number = 15 * 60; // 15 minutes
   private refreshTokenTtlDays: number = 7; // 7 days
   private failedLoginAttempts: Map<string, { count: number; lockedUntil: number }> = new Map();
+  private usedDeviceSignatures: Map<string, number> = new Map(); // `${deviceId}:${timestamp}` -> expiry
 
   constructor(
     repo: AegisRepository,
@@ -53,12 +54,21 @@ export class AuthService {
       throw new Error('device_revoked');
     }
 
-    // Verify clock skew (reject if timestamp drift > 10 minutes)
+    // Verify clock skew (reject if timestamp drift > 3 minutes)
     const clientTime = new Date(timestamp).getTime();
     const serverTime = Date.now();
-    if (Math.abs(serverTime - clientTime) > 10 * 60 * 1000) {
+    if (isNaN(clientTime) || Math.abs(serverTime - clientTime) > 3 * 60 * 1000) {
       throw new Error('Clock skew detected. Check device time.');
     }
+
+    // Replay attack defense: ensure signature timestamp has not been previously consumed
+    const signatureKey = `${deviceId}:${timestamp}:${signature.slice(0, 16)}`;
+    const now = Date.now();
+    const existingUsage = this.usedDeviceSignatures.get(signatureKey);
+    if (existingUsage && existingUsage > now) {
+      throw new Error('Device signature replay detected');
+    }
+    this.usedDeviceSignatures.set(signatureKey, now + 3 * 60 * 1000);
 
     // Verify cryptographic signature over payload `${deviceId}:${timestamp}`
     const payloadToVerify = `${deviceId}:${timestamp}`;

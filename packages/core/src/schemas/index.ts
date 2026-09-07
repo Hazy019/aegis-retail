@@ -62,7 +62,7 @@ export const SaleCreationSchema = z.object({
 export const SyncQueueItemSchema = z.object({
   id: z.string().uuid(),
   device_id: z.string().uuid(),
-  idempotency_key: z.string().regex(/^[\w-]+:[\w-]+$/, {
+  idempotency_key: z.string().min(5).max(128).regex(/^[\w-]+:[\w-]+$/, {
     message: 'Idempotency key must be in format device_id:uuid'
   }),
   op: SyncOpSchema,
@@ -91,7 +91,7 @@ export const BulkConversionSchema = z.object({
   unit_product_id: z.string().uuid(),
   cartons_to_convert: z.number().int().positive(),
   units_yielded: z.number().int().positive(),
-  idempotency_key: z.string().regex(/^[\w-]+:[\w-]+$/),
+  idempotency_key: z.string().min(5).max(128).regex(/^[\w-]+:[\w-]+$/),
   notes: z.string().optional()
 });
 
@@ -99,7 +99,7 @@ export const DamageWriteOffSchema = z.object({
   product_id: z.string().uuid(),
   quantity: z.number().int().positive(),
   reason: z.string().min(3),
-  idempotency_key: z.string().regex(/^[\w-]+:[\w-]+$/)
+  idempotency_key: z.string().min(5).max(128).regex(/^[\w-]+:[\w-]+$/)
 });
 
 // Pricing Proposal Schema
@@ -120,7 +120,7 @@ export const CreditPaymentSchema = z.object({
   customer_id: z.string().uuid(),
   amount: z.number().int().positive(),
   notes: z.string().optional(),
-  idempotency_key: z.string().regex(/^[\w-]+:[\w-]+$/)
+  idempotency_key: z.string().min(5).max(128).regex(/^[\w-]+:[\w-]+$/)
 });
 
 // Anomaly Resolution Schema

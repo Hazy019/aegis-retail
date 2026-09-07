@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as crypto from 'crypto';
 import { createApp, AppContext } from './app.js';
 import {
+  generateDeviceKeyPair,
   signWithDeviceKey,
   createIdempotencyKey,
   verifyAuditChain,
@@ -366,5 +367,103 @@ describe('Aegis Retail — Cloud Backend & Conflict Engine Tests', () => {
     const tamperedVerification = verifyAuditChain(tamperedLogs);
     assert.equal(tamperedVerification.valid, false, 'Tampered audit trail must fail cryptographic verification');
     assert.equal(tamperedVerification.brokenAtIndex, 2);
+  });
+
+  test('7. RBAC Security Defense: Cashier Device Forbidden on Manager Endpoints', async () => {
+    // Attempt to access manager pricing margins with cashier token
+    const pricingRes = await ctx.app.inject({
+      method: 'GET',
+      url: '/dashboard/pricing',
+      headers: { authorization: `Bearer ${cashierToken}` }
+    });
+    assert.equal(pricingRes.statusCode, 403, 'Cashier token must be forbidden from accessing pricing margins');
+
+    // Attempt to access customer credit balances with cashier token
+    const creditRes = await ctx.app.inject({
+      method: 'GET',
+      url: '/dashboard/credit',
+      headers: { authorization: `Bearer ${cashierToken}` }
+    });
+    assert.equal(creditRes.statusCode, 403, 'Cashier token must be forbidden from querying customer credit list');
+  });
+
+  test('8. Manager Customer Credit Debt Repayment (Bayad)', async () => {
+    // Customer 1 was seeded with PHP 250.00 debt (25000 cents)
+    const customers = await ctx.repo.listCustomers(ctx.seedData.storeId);
+    const customer = customers.find((c) => c.current_credit_balance > 0);
+    assert.ok(customer);
+    const initialDebt = customer.current_credit_balance;
+
+    const paymentRes = await ctx.app.inject({
+      method: 'POST',
+      url: `/dashboard/credit/${customer.id}/payment`,
+      headers: { authorization: `Bearer ${managerToken}` },
+      payload: {
+        customer_id: customer.id,
+        amount: 10000, // PHP 100.00 repayment
+        notes: 'Partial cash payment made at manager counter',
+        idempotency_key: createIdempotencyKey('manager', crypto.randomUUID())
+      }
+    });
+
+    assert.equal(paymentRes.statusCode, 200);
+    const body = JSON.parse(paymentRes.body);
+    assert.equal(body.status, 'payment_recorded');
+    assert.equal(body.customer.current_credit_balance, initialDebt - 10000);
+  });
+
+  test('9. Device Authentication Clock Skew & Replay Defense', async () => {
+    // Generate fresh device
+    const { publicKey, privateKey } = generateDeviceKeyPair();
+    const newDevice = await ctx.repo.registerDevice({
+      store_id: ctx.seedData.storeId,
+      device_identifier: 'AEGIS-POS-TEMP-02',
+      device_cert_public_key: publicKey,
+      label: 'Temporary Test POS'
+    });
+
+    // Case A: 5-minute past timestamp (exceeds 3-minute skew window)
+    const staleTime = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const staleSig = signWithDeviceKey(privateKey, `${newDevice.id}:${staleTime}`);
+
+    const staleRes = await ctx.app.inject({
+      method: 'POST',
+      url: '/auth/device-login',
+      payload: {
+        device_id: newDevice.id,
+        signature: staleSig,
+        timestamp: staleTime
+      }
+    });
+    assert.equal(staleRes.statusCode, 400);
+    assert.match(JSON.parse(staleRes.body).error, /Clock skew/);
+
+    // Case B: Valid timestamp login
+    const validTime = new Date().toISOString();
+    const validSig = signWithDeviceKey(privateKey, `${newDevice.id}:${validTime}`);
+
+    const firstLogin = await ctx.app.inject({
+      method: 'POST',
+      url: '/auth/device-login',
+      payload: {
+        device_id: newDevice.id,
+        signature: validSig,
+        timestamp: validTime
+      }
+    });
+    assert.equal(firstLogin.statusCode, 200);
+
+    // Case C: Immediate replay of identical signature and timestamp
+    const replayLogin = await ctx.app.inject({
+      method: 'POST',
+      url: '/auth/device-login',
+      payload: {
+        device_id: newDevice.id,
+        signature: validSig,
+        timestamp: validTime
+      }
+    });
+    assert.equal(replayLogin.statusCode, 400);
+    assert.match(JSON.parse(replayLogin.body).error, /replay detected/);
   });
 });

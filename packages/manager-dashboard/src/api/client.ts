@@ -203,6 +203,18 @@ class DashboardApiClient {
     });
   }
 
+  async recordCreditPayment(customerId: string, amount: number, notes?: string) {
+    return this.request<{ status: string; entry: any; customer: CreditCustomer }>(`/dashboard/credit/${customerId}/payment`, {
+      method: 'POST',
+      body: JSON.stringify({
+        customer_id: customerId,
+        amount,
+        notes,
+        idempotency_key: `manager:${Date.now()}`
+      })
+    });
+  }
+
   async getAuditLog(): Promise<{ logs: AuditEntry[]; verification: AuditVerification }> {
     return this.request<{ logs: AuditEntry[]; verification: AuditVerification }>('/dashboard/audit');
   }

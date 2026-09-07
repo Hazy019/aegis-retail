@@ -37,6 +37,7 @@ interface DashboardDataContextType {
   updateProductPrice: (productId: string, newPriceMinor: number) => Promise<void>;
   writeOffDamage: (productId: string, quantity: number, reason: string) => Promise<void>;
   registerCustomer: (name: string, phone: string, creditLimitMinor: number) => Promise<void>;
+  recordCreditPayment: (customerId: string, amountMinor: number, notes?: string) => Promise<void>;
   reconcileAnomaly: (anomalyId: string, adjustedQty: number, notes: string) => Promise<void>;
   revokeTerminal: (deviceId: string, reason?: string) => Promise<void>;
   setProducts: React.Dispatch<React.SetStateAction<CatalogProduct[]>>;
@@ -171,6 +172,19 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const recordCreditPayment = async (customerId: string, amountMinor: number, notes?: string) => {
+    const t0 = performance.now();
+    try {
+      await api.recordCreditPayment(customerId, amountMinor, notes);
+      const latency = Math.round(performance.now() - t0);
+      toast.success('Credit Payment Recorded', `Payment of ₱${(amountMinor / 100).toFixed(2)} recorded in credit ledger.`, latency);
+      await refreshData();
+    } catch (err: any) {
+      toast.error('Payment Error', err.message || 'Could not record credit payment.');
+      throw err;
+    }
+  };
+
   const reconcileAnomaly = async (anomalyId: string, adjustedQty: number, notes: string) => {
     const t0 = performance.now();
     try {
@@ -214,6 +228,7 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
         updateProductPrice,
         writeOffDamage,
         registerCustomer,
+        recordCreditPayment,
         reconcileAnomaly,
         revokeTerminal,
         setProducts

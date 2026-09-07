@@ -79,14 +79,17 @@ class PostgresSession implements IDatabaseSession {
   }
 
   async setStoreContext(storeId: string): Promise<void> {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(storeId)) {
+      throw new Error('Invalid storeId format for RLS context');
+    }
     this.currentStoreId = storeId;
-    await this.client.query(`SET LOCAL app.current_store_id = '${storeId}'`);
+    await this.client.query('SELECT set_config($1, $2, true)', ['app.current_store_id', storeId]);
   }
 
   async beginTransaction(): Promise<void> {
     await this.client.query('BEGIN');
     if (this.currentStoreId) {
-      await this.client.query(`SET LOCAL app.current_store_id = '${this.currentStoreId}'`);
+      await this.client.query('SELECT set_config($1, $2, true)', ['app.current_store_id', this.currentStoreId]);
     }
   }
 

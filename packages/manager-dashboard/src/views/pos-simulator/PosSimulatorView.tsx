@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useDashboardData } from '../../context/DashboardDataContext.js';
 import { useToast } from '../../context/ToastContext.js';
 import { CatalogProduct } from '../../api/client.js';
@@ -15,7 +15,8 @@ import {
   Banknote,
   Clock,
   Sparkles,
-  Search
+  Search,
+  Keyboard
 } from 'lucide-react';
 
 export function PosSimulatorView() {
@@ -28,6 +29,21 @@ export function PosSimulatorView() {
   const [simSelectedCustomer, setSimSelectedCustomer] = useState<string>(customers[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
   const [simQueuedSales, setSimQueuedSales] = useState<any[]>([]);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F2') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handleSimCheckout();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  });
 
   const formatCurrency = (minor: number) => `₱${(minor / 100).toFixed(2)}`;
 
@@ -224,8 +240,9 @@ export function PosSimulatorView() {
             <div style={{ position: 'relative', width: '220px' }}>
               <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#A0B2AF' }} />
               <input
+                ref={searchInputRef}
                 type="text"
-                placeholder="Scan or filter..."
+                placeholder="Scan / filter (F2)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{

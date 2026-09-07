@@ -13,6 +13,7 @@ import {
   PricingProposalSchema,
   AnomalyResolutionSchema,
   CustomerCreationSchema,
+  CreditPaymentSchema,
   DamageWriteOffSchema,
   ProductCreationSchema,
   verifyAuditChain,
@@ -168,7 +169,9 @@ export function registerRoutes(
   // --- DASHBOARD: PRICING & CATALOG ---
   app.get('/dashboard/pricing', async (req, reply) => {
     const user = await authenticate(req, reply);
-    if (!user) return;
+    if (!user || user.role !== 'manager') {
+      return reply.status(403).send({ error: 'Forbidden: manager role required to view pricing & margins' });
+    }
 
     const products = await repo.listProducts(user.store_id);
     const inventory = await repo.listInventory(user.store_id);
@@ -294,7 +297,9 @@ export function registerRoutes(
   // --- DASHBOARD: CUSTOMERS & CREDIT LEDGER ---
   app.get('/dashboard/credit', async (req, reply) => {
     const user = await authenticate(req, reply);
-    if (!user) return;
+    if (!user || user.role !== 'manager') {
+      return reply.status(403).send({ error: 'Forbidden: manager role required to view customer credit balances' });
+    }
 
     const customers = await repo.listCustomers(user.store_id);
     return reply.status(200).send({ customers });
@@ -313,9 +318,32 @@ export function registerRoutes(
     }
   });
 
+  app.post('/dashboard/credit/:customerId/payment', async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user || user.role !== 'manager') return;
+
+    const { customerId } = req.params as { customerId: string };
+    try {
+      const body = CreditPaymentSchema.parse({ ...(req.body as Record<string, unknown>), customer_id: customerId });
+      const entry = await repo.recordCreditPayment(
+        user.store_id,
+        customerId,
+        body.amount,
+        user.user_id || 'manager',
+        body.notes
+      );
+      const updatedCustomer = await repo.getCustomer(customerId, user.store_id);
+      return reply.status(200).send({ status: 'payment_recorded', entry, customer: updatedCustomer });
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message });
+    }
+  });
+
   app.get('/dashboard/credit/:customerId/history', async (req, reply) => {
     const user = await authenticate(req, reply);
-    if (!user) return;
+    if (!user || user.role !== 'manager') {
+      return reply.status(403).send({ error: 'Forbidden: manager role required' });
+    }
 
     const { customerId } = req.params as { customerId: string };
     const history = await repo.getCreditHistory(customerId, user.store_id);
